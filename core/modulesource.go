@@ -175,6 +175,14 @@ func (src *ModuleSource) SelfCallsEnabled() bool {
 	return false
 }
 
+// PortableAPIEnabled reports whether the PORTABLE_API experimental feature is
+// enabled for this source. When enabled, SDK codegen generates module code
+// that imports the published SDK library (e.g. dagger.io/dagger for Go)
+// instead of vendoring a copy of the core bindings into the module.
+func (src *ModuleSource) PortableAPIEnabled() bool {
+	return src.SDK != nil && src.SDK.ExperimentalFeatureEnabled(ModuleSourceExperimentalFeaturePortableAPI)
+}
+
 type ModuleSource struct {
 	ConfigExists                  bool `field:"true" name:"configExists" doc:"Whether an existing module config file was found."`
 	ConfigFilename                string
@@ -2339,6 +2347,8 @@ func (f ModuleSourceExperimentalFeature) String() string { return string(f) }
 var ModuleSourceExperimentalFeatures = dagql.NewEnum[ModuleSourceExperimentalFeature]()
 
 var ModuleSourceExperimentalFeatureSelfCalls = ModuleSourceExperimentalFeatures.Register("SELF_CALLS", "Self calls")
+
+var ModuleSourceExperimentalFeaturePortableAPI = ModuleSourceExperimentalFeatures.Register("PORTABLE_API", "Use the portable Dagger API: generated module code imports dagger.io/dagger instead of vendoring core bindings")
 
 func (f ModuleSourceExperimentalFeature) Type() *ast.Type {
 	return &ast.Type{

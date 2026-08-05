@@ -142,6 +142,7 @@ func (funcs goTemplateFuncs) FuncMap() template.FuncMap {
 		"IsPartial":               funcs.isPartial,
 		"IsModuleCode":            funcs.isModuleCode,
 		"IsStandaloneClient":      funcs.isStandaloneClient,
+		"IsPortableAPI":           funcs.isPortableAPI,
 		"ModuleMainSrc":           funcs.moduleMainSrc,
 		"ModuleRelPath":           funcs.moduleRelPath,
 		"Dependencies":            funcs.Dependencies,

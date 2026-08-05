@@ -63,6 +63,11 @@ type ModuleGeneratorConfig struct {
 
 	// If set, use `@dagger.io/dagger` with the given version and use it in the generated client.
 	LibVersion string
+
+	// PortableAPI enables the experimental portable API mode: generated
+	// module code imports the published SDK library (dagger.io/dagger for
+	// Go) instead of vendoring a copy of the core bindings.
+	PortableAPI bool
 }
 
 type ModuleSourceDependency struct {

@@ -221,10 +221,13 @@ type ModuleConfigUserFields struct {
 // content-addressed digest of the runtime module for reproducible loads;
 // it is empty for built-ins and only set for external refs.
 //
-// Config, Debug, and Experimental are deprecated and no longer persisted by
-// the current TOML schema. They survive on this struct only for back-compat
-// reading of legacy dagger.json. Writes to current TOML omit them; writes to
-// legacy JSON preserve them (the legacy format is not being rewritten).
+// Config and Debug are deprecated and no longer persisted by the current
+// TOML schema. They survive on this struct only for back-compat reading of
+// legacy dagger.json. Writes to current TOML omit them; writes to legacy
+// JSON preserve them (the legacy format is not being rewritten).
+// Experimental is persisted by both schemas: it toggles non-graduated
+// experimental features (e.g. PORTABLE_API), which must survive
+// regeneration.
 type SDK struct {
 	Source string `json:"source" toml:"source"`
 	Pin    string `json:"pin,omitempty" toml:"pin,omitempty"`
@@ -233,8 +236,11 @@ type SDK struct {
 	Config map[string]any `json:"config,omitempty" toml:"-"`
 	// Deprecated: not persisted by current TOML schema. Legacy JSON read-only.
 	Debug bool `json:"debug,omitempty" toml:"-"`
-	// Deprecated: self-calls graduated; not persisted by current TOML schema. Legacy JSON read-only.
-	Experimental map[string]bool `json:"experimental,omitempty" toml:"-"`
+	// Experimental toggles non-graduated experimental features for the SDK
+	// (e.g. PORTABLE_API). Persisted so that regeneration keeps the module's
+	// chosen codegen shape. Graduated features (e.g. SELF_CALLS) no longer
+	// need an entry and are ignored.
+	Experimental map[string]bool `json:"experimental,omitempty" toml:"experimental,omitempty"`
 }
 
 func (sdk *SDK) UnmarshalJSON(data []byte) error {

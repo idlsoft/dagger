@@ -564,6 +564,9 @@ func (sdk *goSDK) baseWithCodegen(
 	if !src.Self().ConfigExists {
 		codegenArgs = append(codegenArgs, "--is-init")
 	}
+	if src.Self().PortableAPIEnabled() {
+		codegenArgs = append(codegenArgs, "--portable-api")
+	}
 
 	selectors := []dagql.Selector{
 		{

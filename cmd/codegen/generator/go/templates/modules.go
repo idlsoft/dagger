@@ -31,6 +31,13 @@ func (funcs goTemplateFuncs) isModuleCode() bool {
 	return funcs.cfg.ModuleConfig != nil && funcs.cfg.ModuleConfig.ModuleName != ""
 }
 
+// isPortableAPI reports whether the experimental portable API mode is
+// enabled: generated module code imports dagger.io/dagger instead of
+// vendoring core bindings. Only meaningful in module mode.
+func (funcs goTemplateFuncs) isPortableAPI() bool {
+	return funcs.isModuleCode() && funcs.cfg.ModuleConfig.PortableAPI
+}
+
 func (funcs goTemplateFuncs) isStandaloneClient() bool {
 	return funcs.cfg.ClientConfig != nil
 }
