@@ -283,11 +283,13 @@ func (sdk *goSDK) Codegen(
 		VCSGeneratedPaths: []string{
 			"dagger.gen.go",
 			"internal/dagger/**",
+			"internal/dagger-sdk/**",
 			"internal/telemetry/**",
 		},
 		VCSIgnoredPaths: []string{
 			"dagger.gen.go",
 			"internal/dagger",
+			"internal/dagger-sdk",
 			"internal/telemetry",
 			".env", // this is here because the Go SDK does not use WithVCSIgnoredPaths on core/codegen/GeneratedCode
 		},

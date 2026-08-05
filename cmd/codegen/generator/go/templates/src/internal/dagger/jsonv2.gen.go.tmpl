@@ -9,6 +9,10 @@ import (
 	"context"
 
 	json "encoding/json/v2"
+{{- if IsPortableAPI }}
+
+	"dagger.io/dagger"
+{{- end }}
 )
 
 {{ template "_jsonv2/marshalers.go.tmpl" . }}

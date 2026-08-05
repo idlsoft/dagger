@@ -11,8 +11,12 @@
 // build tag.
 func Marshalers(ctx context.Context) *json.Marshalers {
 	return json.JoinMarshalers(
+{{- if IsPortableAPI }}
+		dagger.Marshalers(ctx),
+{{- end }}
 {{- range $t := .Types }}
 {{- if eq $t.Kind "OBJECT" }}
+{{- if or (not IsPortableAPI) (IsExtendableType $t) }}
 {{- range $f := $t.Fields }}
 {{- if eq $f.Name "id" }}
 		json.MarshalFunc(func(v {{ $t.Name | FormatName }}) ([]byte, error) {
@@ -25,7 +29,8 @@ func Marshalers(ctx context.Context) *json.Marshalers {
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if eq $t.Kind "INTERFACE" }}
+{{- end }}
+{{- if and (eq $t.Kind "INTERFACE") (not IsPortableAPI) }}
 {{- $ifaceName := "" }}
 {{- if and (LegacyGoSDKCompat) (ne $t.Name "Node") }}{{ $ifaceName = $t.Name | FormatName }}{{ else }}{{ $ifaceName = $t.Name | InterfaceClientName }}{{ end }}
 {{- range $f := $t.Fields }}
@@ -59,8 +64,12 @@ func Unmarshalers(c IDClient) *json.Unmarshalers {
 	root := c.QueryBuilder()
 	_ = root
 	return json.JoinUnmarshalers(
+{{- if IsPortableAPI }}
+		dagger.Unmarshalers(c),
+{{- end }}
 {{- range $t := .Types }}
 {{- if eq $t.Kind "OBJECT" }}
+{{- if or (not IsPortableAPI) (IsExtendableType $t) }}
 {{- range $f := $t.Fields }}
 {{- if eq $f.Name "id" }}
 		json.UnmarshalFunc(func(data []byte, v *{{ $t.Name | FormatName }}) error {
@@ -74,7 +83,8 @@ func Unmarshalers(c IDClient) *json.Unmarshalers {
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if eq $t.Kind "INTERFACE" }}
+{{- end }}
+{{- if and (eq $t.Kind "INTERFACE") (not IsPortableAPI) }}
 {{- $ifaceName := "" }}
 {{- if and (LegacyGoSDKCompat) (ne $t.Name "Node") }}{{ $ifaceName = $t.Name | FormatName }}{{ else }}{{ $ifaceName = $t.Name | InterfaceClientName }}{{ end }}
 {{- range $f := $t.Fields }}
@@ -93,3 +103,24 @@ func Unmarshalers(c IDClient) *json.Unmarshalers {
 {{- end }}
 	)
 }
+
+{{ if IsPortableAPI }}
+// MarshalJSON serializes v to JSON, resolving any Dagger objects it contains
+// to their IDs using the given ctx.
+//
+// In portable API mode this is implemented on top of the json/v2 Marshalers,
+// so it needs no package-level marshaling state for core types.
+func MarshalJSON(ctx context.Context, v any) ([]byte, error) {
+	return json.Marshal(v, json.WithMarshalers(Marshalers(ctx)))
+}
+
+// UnmarshalJSON deserializes JSON data into v, reconstructing any Dagger
+// objects it contains from their IDs using the given client.
+//
+// In portable API mode this is implemented on top of the json/v2
+// Unmarshalers, so it needs no package-level unmarshaling state for core
+// types.
+func UnmarshalJSON(c IDClient, data []byte, v any) error {
+	return json.Unmarshal(data, v, json.WithUnmarshalers(Unmarshalers(c)))
+}
+{{ end }}

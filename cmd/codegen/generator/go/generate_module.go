@@ -28,6 +28,14 @@ import (
 const (
 	daggerImportPath       = "dagger.io/dagger"
 	querybuilderImportPath = "github.com/dagger/querybuilder"
+
+	// portableSDKDir is where, in portable API mode, the SDK library matching
+	// this codegen binary is written (relative to the module's go.mod). The
+	// module's go.mod replaces dagger.io/dagger with this directory, which
+	// keeps generation hermetic (no network fetch of dagger.io/dagger) and
+	// guarantees the library version matches the templates that generated the
+	// module code, even for unreleased engine builds.
+	portableSDKDir = "internal/dagger-sdk"
 )
 
 func (g *GoGenerator) GenerateModule(ctx context.Context, schema *introspection.Schema, schemaVersion string) (*generator.GeneratedState, error) {
@@ -36,6 +44,12 @@ func (g *GoGenerator) GenerateModule(ctx context.Context, schema *introspection.
 	}
 
 	moduleConfig := g.Config.ModuleConfig
+
+	// The portable API aliases core types to dagger.io/dagger, which only
+	// ships the modern (unified ID, first-class interface clients) surface.
+	if moduleConfig.PortableAPI && schemaVersion != "" && semver.Compare(schemaVersion, "v0.21.0-0") < 0 {
+		return nil, fmt.Errorf("the PORTABLE_API experimental feature requires engine version v0.21.0 or later (have %s)", schemaVersion)
+	}
 
 	generator.SetSchema(schema)
 
@@ -262,6 +276,29 @@ func (g *GoGenerator) bootstrapMod(mfs *memfs.FS, genSt *generator.GeneratedStat
 		return nil, false, err
 	}
 
+	// In portable API mode, write the SDK library embedded in this codegen
+	// binary into the module, as the replace target for dagger.io/dagger
+	// (see syncModReplaceAndTidy). Skipped when the user replaces
+	// dagger.io/dagger themselves (e.g. dagger-dev workflows).
+	if moduleConfig.PortableAPI && !isDaggerPkgCustomReplaced(goMod.Replace) {
+		if err := fs.WalkDir(dagger.GoSDK, ".", func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			data, err := dagger.GoSDK.ReadFile(p)
+			if err != nil {
+				return fmt.Errorf("read embedded sdk file %q: %w", p, err)
+			}
+			dest := filepath.Join(daggerModPath, portableSDKDir, p)
+			if err := mfs.MkdirAll(filepath.Dir(dest), 0700); err != nil {
+				return err
+			}
+			return mfs.WriteFile(dest, data, 0600)
+		}); err != nil {
+			return nil, false, fmt.Errorf("write portable sdk library: %w", err)
+		}
+	}
+
 	packageImport, err := filepath.Rel(daggerModPath, moduleConfig.ModuleSourcePath)
 	if err != nil {
 		return nil, false, err
@@ -321,7 +358,26 @@ func (g *GoGenerator) syncModReplaceAndTidy(mod *modfile.File, genSt *generator.
 	// Check if the module go.mod replaces the dagger.io/dagger library with a custom path.
 	// If so, we keep it as is.
 	// Otherwise, we install the given dagger.io/dagger package version.
-	if !isDaggerPkgCustomReplaced(mod.Replace) {
+	switch {
+	case isDaggerPkgCustomReplaced(mod.Replace):
+		// keep the user's replace directive as-is
+
+	case g.Config.ModuleConfig.PortableAPI:
+		// In portable API mode the generated code imports dagger.io/dagger
+		// directly. Wire it to the SDK library written into portableSDKDir
+		// (see bootstrapMod) instead of fetching a published version: this is
+		// hermetic and matches this codegen binary exactly. The require
+		// version is a placeholder; the replace directive supplies the code.
+		//
+		// TODO: once portable-API-capable versions of dagger.io/dagger are
+		// published, prefer `go get dagger.io/dagger@LibVersion` and drop the
+		// local copy (keeping this path as the offline fallback).
+		genSt.PostCommands = append(genSt.PostCommands,
+			exec.Command("go", "mod", "edit",
+				"-require="+daggerImportPath+"@v0.0.0-dev",
+				"-replace="+daggerImportPath+"=./"+portableSDKDir))
+
+	default:
 		genSt.PostCommands = append(genSt.PostCommands,
 			// Do not pass -u here: LibVersion pins dagger.io/dagger, while -u also
 			// asks Go to upgrade transitive dependencies during generation.

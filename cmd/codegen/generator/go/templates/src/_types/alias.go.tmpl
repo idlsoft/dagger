@@ -1,0 +1,46 @@
+{{- /*
+Portable API mode: core types are not regenerated, they are aliased to the
+published SDK library (dagger.io/dagger). Aliases are transparent, so values
+of these types are interchangeable with dagger.io/dagger values across
+packages and modules. Only the dynamically extended types (Query, Env,
+Binding) and module-provided types are generated locally.
+*/ -}}
+{{ .Description | Comment }}
+type {{ .Name | FormatName }} = dagger.{{ .Name | FormatName }}
+
+{{ if or (eq .Kind "OBJECT") (eq .Kind "INTERFACE") }}
+{{- if . | IsSelfChainable }}
+type With{{ .Name | FormatName }}Func = dagger.With{{ .Name | FormatName }}Func
+{{ end }}
+{{- range $field := .Fields }}
+{{- if HasOptionals $field.Args }}
+// {{ $field | FieldOptionsStructName }} contains options for {{ $.Name | FormatName }}.{{ $field.Name | FormatName }}
+type {{ $field | FieldOptionsStructName }} = dagger.{{ $field | FieldOptionsStructName }}
+{{ end }}
+{{- end }}
+{{- end }}
+
+{{ if eq .Kind "INTERFACE" }}
+// {{ .Name | InterfaceClientName }} is the query-builder for the {{ .Name | FormatName }} interface.
+type {{ .Name | InterfaceClientName }} = dagger.{{ .Name | InterfaceClientName }}
+{{ end }}
+
+{{ if and (eq .Kind "ENUM") (IsEnum .) }}
+{{- /* Mirror the const set of _types/enum.go.tmpl (modern, scoped names) */ -}}
+{{- $enumName := .Name }}
+const (
+	{{- range $fields := .EnumValues | GroupEnumByValue }}
+	{{- range $idx, $field := slice $fields }}
+	{{- $fullFieldName := print ($field.Name | FormatEnum $enumName) }}
+	{{- if $field.IsDeprecated }}
+	{{ $field.DeprecationReason | FormatDeprecation }}
+	{{- end }}
+	{{- with $field.Description }}
+	{{ . | Comment }}
+	{{- end }}
+	{{ $fullFieldName }} {{ $enumName }} = dagger.{{ $fullFieldName }}
+	{{- end }}
+
+	{{ end }}
+)
+{{- end }}

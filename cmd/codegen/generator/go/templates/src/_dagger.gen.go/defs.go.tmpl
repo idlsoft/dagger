@@ -23,7 +23,7 @@ import (
 	telemetry "github.com/dagger/otel-go"
 {{ end }}
 
-{{- if IsStandaloneClient }}
+{{- if or IsStandaloneClient IsPortableAPI }}
 	"dagger.io/dagger"
 {{ end }}
 )
@@ -35,10 +35,6 @@ func Tracer() trace.Tracer {
 // reassigned at runtime after the span is initialized
 var marshalCtx = context.Background()
 
-// marshalMu serializes swaps of the package-level marshaling state
-// (marshalCtx{{ if IsModuleCode }} and dag{{ end }}) performed by MarshalJSON{{ if IsModuleCode }} and UnmarshalJSON{{ end }}.
-var marshalMu sync.Mutex
-
 {{ if IsModuleCode }}
 // SetMarshalContext is a hack that lets us set the ctx to use for
 // MarshalJSON implementations that get an object's ID.
@@ -49,6 +45,22 @@ func SetMarshalContext(ctx context.Context) {
 	marshalCtx = ctx
 }
 {{ end }}
+
+{{ if IsPortableAPI }}
+// IDClient is the minimal client surface needed to reconstruct Dagger
+// objects from their IDs. *Client implements it.
+type IDClient = dagger.IDClient
+
+{{/*
+In portable API mode the MarshalJSON/UnmarshalJSON helpers are implemented
+on top of the json/v2 Marshalers/Unmarshalers (see jsonv2*.gen.go): aliased
+core types have no per-type UnmarshalJSON methods here, so the global-swap
+implementation below would not reconstruct them.
+*/}}
+{{ else }}
+// marshalMu serializes swaps of the package-level marshaling state
+// (marshalCtx{{ if IsModuleCode }} and dag{{ end }}) performed by MarshalJSON{{ if IsModuleCode }} and UnmarshalJSON{{ end }}.
+var marshalMu sync.Mutex
 
 // IDClient is the minimal client surface needed to reconstruct Dagger
 // objects from their IDs. *Client implements it.
@@ -95,6 +107,7 @@ func UnmarshalJSON(c IDClient, data []byte, v any) error {
 	defer func() { dag = prevDag }()
 	return json.Unmarshal(data, v)
 }
+{{ end }}
 {{ end }}
 
 // assertNotNil panic if the given value is nil.
@@ -208,11 +221,15 @@ func (e *ExecError) Unwrap() error {
 	return e.original
 }
 {{ range .Types }}
+{{ if and IsPortableAPI (not (IsExtendableType .)) }}
+{{ template "_types/alias.go.tmpl" . }}
+{{ else }}
 {{ if eq .Kind "SCALAR" }}{{ template "_types/scalar.go.tmpl" . }}{{ end }}
 {{ if eq .Kind "OBJECT" }}{{ template "_types/object.go.tmpl" . }}{{ end }}
 {{ if eq .Kind "INTERFACE" }}{{ template "_types/interface.go.tmpl" . }}{{ end }}
 {{ if eq .Kind "INPUT_OBJECT" }}{{ template "_types/input.go.tmpl" . }}{{ end }}
 {{ if eq .Kind "ENUM" }}{{ template "_types/enum.go.tmpl" . }}{{ end }}
+{{ end }}
 {{ end }}
 
 {{ if IsModuleCode }}

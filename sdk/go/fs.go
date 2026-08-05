@@ -15,7 +15,7 @@ var GoMod []byte
 //go:embed go.sum
 var GoSum []byte
 
-//go:embed engineconn/*.go go.mod go.sum client.go dagger.gen.go
+//go:embed engineconn/*.go go.mod go.sum client.go dagger.gen.go jsonv2.gen.go jsonv2_compat.gen.go
 var GoSDK embed.FS
 
 //go:embed dagger.gen.go
